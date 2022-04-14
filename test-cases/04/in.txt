@@ -1,0 +1,1 @@
+./corona merge inputs/infected-jan22/2022-01-*.csv | head -n 3

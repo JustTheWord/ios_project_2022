@@ -1,0 +1,1 @@
+./corona infected inputs/osoby.csv

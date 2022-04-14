@@ -1,0 +1,1 @@
+cat inputs/gender_with_none.csv | ./corona gender

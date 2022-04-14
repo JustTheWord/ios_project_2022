@@ -1,0 +1,1 @@
+./corona -g M -s 20 age inputs/osoby-short.csv.bz2

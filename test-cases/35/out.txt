@@ -1,0 +1,5 @@
+id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs
+3d5b5e66-a0a4-49b2-91b2-83c073fa0a0f,2022-01-01,79,M,CZ064,CZ0646,,,1
+0db98dc6-6f53-4ef0-aeb3-8e2891473106,2022-01-01,2,M,CZ010,CZ0100,,,1
+45c6f7ea-cbf8-42f7-b05a-2d17027e996f,2022-01-03,20,M,CZ010,CZ0100,,,1
+b7a6df4a-a1d4-4e77-b5c8-67516eb0031d,2022-01-03,9,M,CZ020,CZ0204,,,1

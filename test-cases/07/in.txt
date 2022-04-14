@@ -1,0 +1,1 @@
+cat inputs/osoby.csv | ./corona -a 2021-07-19 infected

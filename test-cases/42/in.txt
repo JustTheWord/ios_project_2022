@@ -1,0 +1,1 @@
+./corona yearly inputs/with_none.csv

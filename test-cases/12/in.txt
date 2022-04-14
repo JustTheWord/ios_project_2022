@@ -1,0 +1,1 @@
+./corona -g M inputs/osoby.csv | head -n 6

@@ -1,0 +1,1 @@
+./corona -s 20 yearly inputs/osoby.csv

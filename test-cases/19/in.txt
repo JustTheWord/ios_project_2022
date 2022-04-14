@@ -1,0 +1,1 @@
+./corona regions inputs/osoby.csv | tail -n 2

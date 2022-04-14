@@ -1,0 +1,1 @@
+./corona infected inputs/infected-jan22/2022-01-*.csv

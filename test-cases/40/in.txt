@@ -1,0 +1,1 @@
+./corona -s 27 gender inputs/osoby-short.csv

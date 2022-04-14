@@ -1,0 +1,507 @@
+#!/bin/sh
+
+export POSIXLY_CORRECT=yes
+export LC_NUMERIC=en_US.UTF-8
+
+
+usage() {
+    echo "SYNOPSIS: corona [-h] [FILTERS] [COMMAND] [LOG [LOG2 [...]]"
+    echo ""
+    echo "|---------------------------------------DESCRIPTION-------------------------------------------|"
+    echo "|  THE COMMAND can be ONE of:                                                                 |"
+    echo "|---------------------------------------------------------------------------------------------|"
+    echo "|• infected -- counts a number of infected                                                    |"
+    echo "|---------------------------------------------------------------------------------------------|"
+    echo "|• merge -- merge several files into one with a single title                                  |"
+    echo "|---------------------------------------------------------------------------------------------|"
+    echo "|• gender -- print a number of infected people according to their gender                      |"
+    echo "|---------------------------------------------------------------------------------------------|"
+    echo "|• age --  print a number of infected people according to their age                           |"
+    echo "|---------------------------------------------------------------------------------------------|"
+    echo "|• daily -- print a number of infected people for particular days                             |"
+    echo "|---------------------------------------------------------------------------------------------|"
+    echo "|• monthly -- print a number of infected people for particular months                         |"
+    echo "|---------------------------------------------------------------------------------------------|"
+    echo "|• yearly -- print a number of infected people for particular years                           |"
+    echo "|---------------------------------------------------------------------------------------------|"
+    echo "|• countries -- print a number of infected people for particular countries                    |"
+    echo "|---------------------------------------------------------------------------------------------|"
+    echo "|• districts -- print a number of infected people for particular districts                    |"
+    echo "|---------------------------------------------------------------------------------------------|"
+    echo "|• regions -- print a number of infected people for particular regions                        |"
+    echo "|_____________________________________________________________________________________________|"
+
+    echo ""
+    echo "   FILTERS can be a COMBINATION of:"
+    echo "|---------------------------------------------------------------------------------------------|"
+    echo "|• -a DATETIME -- after: only records AFTER this date (including this date) are considered.   |"
+    echo "|     The format of DATETIME is YYYY-MM-DD.                                                   |"
+    echo "|---------------------------------------------------------------------------------------------|"
+    echo "|• -b DATETIME -- before: only records BEFORE this date (including this date) are considered. |"
+    echo "|     The format of DATETIME is YYYY-MM-DD.                                                   |"
+    echo "|---------------------------------------------------------------------------------------------|"
+    echo "|• -g GENDER -- consider only records with particular gender.                                 |"
+    echo "|     GENDER can only be set by 'M' or 'Z' arguments.                                         |"
+    echo "|---------------------------------------------------------------------------------------------|"
+    echo "|• -s [WIDTH] -- sets the width for commands 'gender', 'age', 'daily', 'monthly', 'yearly',   |"
+    echo "|     'countries', 'districts' and 'regions' to output the data graphically.                  |"
+    echo "|     If there is an optional argument WIDTH, it sets the length of the longest line to WIDTH.|"
+    echo "|     In that case WIDTH has to be a positive integer.                                        |"
+    echo "|     If there is NO an optional parameter WIDTH, each symbol '#' represents a FLOORED number |"
+    echo "|     of infections for each command according to:                                            |"
+    echo "|                                                                                             |"
+    echo "|     GENDER — 100 000                                                                        |"
+    echo "|     AGE — 10 000                                                                            |"
+    echo "|     DAILY — 500                                                                             |"
+    echo "|     MONTHLY — 10 000                                                                        |"
+    echo "|     YEARLY — 100 000                                                                        |"
+    echo "|     COUNTRIES — 100                                                                         |"
+    echo "|     DISTRICTS — 1 000                                                                       |"
+    echo "|     REGIONS — 10 000                                                                        |"
+    echo "|---------------------------------------------------------------------------------------------|"
+    echo "|• -h -- print a guide with a brief description of filters and commands.                      |"
+    echo "|_____________________________________________________________________________________________|"
+    echo "|• AUTHOR    Egor Greb   xgrebe02@stud.fit.vutbr.cz    2022-03-29                             |"
+    echo "|_____________________________________________________________________________________________|"
+}
+
+date_func() {
+  a="$AFTER_FLAG"
+  b="$BEFORE_FLAG"
+
+  if [ "$a" = "1" ] && [ -z "$b" ]; then
+    DATA=$(echo "$DATA" | awk -F ',' -v after="$AFTER" '
+        { if ($2 >= after) {print}
+        }')
+  elif [ -z "$a" ] && [ "$b" = "1" ]; then
+    DATA=$(echo "$DATA" | awk -F ',' -v before="$BEFORE" '
+        { if ($2 <= before || $2 == "datum") {print}
+        }')
+  else
+    DATA=$(echo "$DATA" | awk -F ',' -v after="$AFTER" -v before="$BEFORE" '
+        { if ((($2 >= after) && ($2 <= before)) || $2 == "datum") {print}
+        }')
+  fi
+}
+
+g_func() {
+  DATA=$(echo "$DATA" | awk -F ',' -v gender="$GENDER" '
+    { if ($4 == gender || $4 == "pohlavi") {print}
+    }')
+}
+
+infected_func() {
+  DATA=$(( $(echo "$DATA" | grep -c '^') - 1 ))
+}
+
+merge_func() {
+  DATA=$(echo "$DATA" | sed '/^\(\xef\xbb\xbf\)*id,datum,/d')                       # deleting all titles including ones started with byte order mark
+  DATA="$TITLE$NEW_LINE$DATA"                                                       # anyway we remain only one title
+
+  INVALID=$(echo "$DATA" | awk -F ',' '
+
+    BEGIN {
+      invalids["dates"] = "";
+      invalids["ages"] = "";
+    }
+    { if ($2 == "datum" || NF < 1 || $2 == None) {print; next} }                     # skip the tittle and empty lines
+    { ("date -d " $2 " > /dev/null 2>&1" " ; echo $? ") | getline exit_code;         # checking the date
+
+      if (exit_code == 0) {
+        if ($3 ~ /^[[:space:]:]*[0-9]*[[:space:]:]*$/) { print }                      # checking the age
+        else { invalids["ages"] = invalids["ages"]"Invalid age: "$0"\n" }             # N.B. the age of the format "003"/"074" is considered valid :(
+      }
+
+      else { invalids["dates"] = invalids["dates"]"Invalid date: "$0"\n" }
+    }
+    END {
+      if (invalids["dates"] != "") {
+        printf("%s", invalids["dates"]);
+      }
+      if (invalids["ages"] != "") {
+        printf("%s", invalids["ages"]);
+      }
+    }
+  ')
+  # divide "data + invalid" into DATA and INVALID separately
+  DATA=$(echo "$INVALID" |  awk ' BEGIN {flag="0" } { if (flag == "0" && $0 !~ /^Invalid*/) { print } else {flag="1"} }')
+  INVALID=$(echo "$INVALID" |  awk '
+  BEGIN { flag="1" }
+  { if (flag == "0") { print } }
+  { if ($0 ~ /^Invalid*/ && flag == "1") { flag="0"; print} }
+  ')
+}
+
+gender_func() {
+  DATA=$(echo "$DATA" | awk -F ',' '
+  { genders[$4] += 1 }
+  END {
+    delete genders["pohlavi"];
+    printf("M: %d\n", genders["M"]);
+    printf("Z: %d\n", genders["Z"]);
+
+    if (None in genders)
+      printf("None: %d\n", genders[None]);
+  }')
+
+  if [ -n "$WIDTH" ]; then                                      # if -s flag is passed, call the special function
+    sharp_func "gender"                                         # for graphical representation of numbers
+  fi
+}
+
+age_func() {
+  DATA=$(printf "%b" "$DATA" | awk -F ',' '
+  { if ($3 == "") ages[None]++;
+    else if ($3 < 6) ages["<6"]++;
+    else if ($3 < 16) ages[15]++;
+    else if ($3 < 26) ages[25]++;
+    else if ($3 < 36) ages[35]++;
+    else if ($3 < 46) ages[45]++;
+    else if ($3 < 56) ages[55]++;
+    else if ($3 < 66) ages[65]++;
+    else if ($3 < 76) ages[75]++;
+    else if ($3 < 86) ages[85]++;
+    else if ($3 < 96) ages[95]++;
+    else if ($3 < 106) ages[105]++;
+    else if ($3 >= 106 && $3 != "vek") ages[">105"]++;
+  }
+  END {
+    printf("%-6s%c %d\n", "0-5", ":", ages["<6"]);
+    for (i = 15; i < 106; i += 10) {
+      printf("%-6s%c %d\n", sprintf("%d-%d", i - 9, i), ":", ages[i]);
+    }
+    printf("%-6s%c %d\n", ">105", ":", ages[">105"]);
+
+    if (None in ages)
+      printf("%-6s%c %d\n", "None", ":", ages[None]);
+  }')
+
+  if [ -n "$WIDTH" ]; then                                      # if -s flag is passed, call the special function
+    sharp_func "age"                                            # for graphical representation of numbers
+  fi
+}
+
+daily_func() {
+  DATA=$(printf "%b" "$DATA" | awk -F ',' '
+  { if ($2 == "datum") next; }
+  { sub(/[ \t]*/, "", $2); date = $2 }                              # deleting whitespace
+  { daily[date] += 1 }
+  END {
+    for (date in daily) {
+      if (date == None) { printf("%s%c %d\n", "None", ":", daily[None]) }
+      else { printf("%s%c %d\n", date, ":", daily[date]) }
+    }
+  }' | sort)
+
+  if [ -n "$WIDTH" ]; then                                      # if -s flag is passed, call the special function
+    sharp_func "daily"                                          # for graphical representation of numbers
+  fi
+}
+
+monthly_func() {
+  DATA=$(printf "%b" "$DATA" | awk -F ',' '
+  { if ($2 == "datum") next; }
+  { sub(/[ \t]*/, "", $2); date = substr($2, 0, 7) }                              # deleting whitespace and the day
+  { monthly[date] += 1 }
+  END {
+    for (date in monthly) {
+      if (date == None) { printf("%s%c %d\n", "None", ":", monthly[None]) }
+      else { printf("%s%c %d\n", date, ":", monthly[date]) }
+    }
+  }' | sort)
+
+  if [ -n "$WIDTH" ]; then                                      # if -s flag is passed, call the special function
+    sharp_func "monthly"                                        # for graphical representation of numbers
+  fi
+}
+
+yearly_func () {
+  DATA=$(printf "%b" "$DATA" | awk -F ',' '
+  { if ($2 == "datum") next; }
+  { sub(/[ \t]*/, "", $2); date = substr($2, 0, 4) }                              # deleting whitespace and the day
+  { yearly[date] += 1 }
+  END {
+    for (date in yearly) {
+      if (date == None) { printf("%s%c %d\n", "None", ":", yearly[None]) }
+      else { printf("%s%c %d\n", date, ":", yearly[date]) }
+    }
+  }' | sort)
+
+  if [ -n "$WIDTH" ]; then                                      # if -s flag is passed, call the special function
+    sharp_func "yearly"                                         # for graphical representation of numbers
+  fi
+}
+
+countries_func () {
+  DATA=$(echo "$DATA" | awk -F ',' '
+  { countries[$8] += 1 }
+  END {
+    delete countries["nakaza_zeme_csu_kod"];
+    delete countries["CZ"];
+    delete countries[None];
+    for (country in countries) {
+      printf("%s%c %d\n", country, ":", countries[country]);
+    }
+  }' | sort)
+
+  if [ -n "$WIDTH" ]; then                                      # if -s flag is passed, call the special function
+    sharp_func "countries"                                      # for graphical representation of numbers
+  fi
+}
+
+districts_func() {
+  DATA=$(echo "$DATA" | awk -F ',' '
+  { districts[$6] += 1 }
+  END {
+    delete districts["okres_lau_kod"];
+    for (district in districts) {
+      if (district == None) continue;
+      printf("%s%c %d\n", district, ":", districts[district]);
+    }
+    if (None in districts)
+      printf("None: %d\n", districts[None]);
+  }' | sort)
+
+  if [ -n "$WIDTH" ]; then                                      # if -s flag is passed, call the special function
+    sharp_func "districts"                                      # for graphical representation of numbers
+  fi
+}
+
+regions_func() {
+  DATA=$(echo "$DATA" | awk -F ',' '
+  { regions[$5] += 1 }
+  END {
+    delete regions["kraj_nuts_kod"];
+    for (region in regions) {
+      if (region == None) continue;
+      printf("%s%c %d\n", region, ":", regions[region]);
+    }
+    if (None in regions)
+      printf("None: %d\n", regions[None]);
+  }' | sort)
+
+  if [ -n "$WIDTH" ]; then                                      # if -s flag is passed, call the special function
+    sharp_func "regions"                                        # for graphical representation of numbers
+  fi
+}
+
+sharp_func() {
+  AVERAGE=""
+  if [ "$WIDTH" = "empty" ]; then
+    AVERAGE=$(echo | awk -v command="$1" '
+      BEGIN {
+        commands["gender"] = 100000;
+        commands["age"] = 10000;
+        commands["daily"] = 500;
+        commands["monthly"] = 10000;
+        commands["yearly"] = 100000;
+        commands["countries"] = 100;
+        commands["districts"] = 1000;
+        commands["regions"] = 10000;
+      }
+      END { printf("%d", commands[command])
+      }')
+
+  else
+    AVERAGE=$(echo "$DATA" | awk -F ":" -v width="$WIDTH" '
+      BEGIN { max=0 }
+      { if ( $2 > 0+max ) max=$2 }
+      END {
+        average = max / width;
+        print average
+      }')
+  fi
+
+  DATA=$(echo "$DATA" | awk -F ":" -v average="$AVERAGE" -v is_age="$1" '
+  { sharps = $2 / average + 1e-4;
+    if (sharps >= 1) {
+        str=sprintf("%*c", sharps, "#");
+        gsub(" ","#",str);
+
+        if (is_age == "age") { printf("%-6s%c %s\n", $1, ":", str) }
+        else { printf("%s: %s\n", $1, str) }
+    }
+    else if (sharps >= 0 && sharps < 1) {
+        printf("%s:\n", $1)
+    }
+  }')
+}
+
+delete_empty_lines() {
+  DATA=$(echo "$DATA" | awk -F ',' '{if (NF > 1) {print}}')
+  INVALID=$(echo "$INVALID" | awk -F ',' '{if (NF > 1) {print}}')
+}
+
+COMMAND=""
+GENDER=""
+TITLE="id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs"
+DATE_FMT='^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$'
+AFTER="0000-00-00"
+BEFORE="9999-99-99"
+INVALID=""
+WIDTH=""
+NEW_LINE='
+'
+
+while getopts :a:b:g:sh opts
+do case "$opts" in
+
+   a) if  date -d "$OPTARG" > /dev/null 2>&1 &&     # checking whether the input date is valid
+      echo "$OPTARG" | grep -q "$DATE_FMT"; then    # checking whether the input date has the YYYY-MM-DD format
+        # for finding the latest date among passed dates in the case of more than one occurrence of -a option
+        if (bool=$(expr "$OPTARG" \> "$AFTER")); then
+          AFTER="$OPTARG"
+          DATE="RUN"
+          AFTER_FLAG=1
+        fi
+      else
+        echo "The wrong format of the date or the date is not valid" >&2
+        echo "Try './corona -h' for more information." >&2
+        exit 1
+      fi;;
+
+   b) if  date -d "$OPTARG" > /dev/null 2>&1 &&     # checking whether the input date is valid
+      echo "$OPTARG" | grep -q "$DATE_FMT"; then    # checking whether the input date has the YYYY-MM-DD format
+        # for finding the earliest date among passed dates in the case of more than one occurrence of -a option
+        if (bool=$(expr "$OPTARG" \< "$BEFORE")); then
+            BEFORE="$OPTARG"
+            DATE="RUN"
+            BEFORE_FLAG=1
+        fi
+      else
+        echo "The wrong format of the date or the date is not valid" >&2
+        echo "Try './corona -h' for more information." >&2
+        exit 1
+      fi;;
+
+   g) if echo "$OPTARG" | grep -q '[MZ]'; then
+      GENDER=${OPTARG}
+      else
+        echo "The wrong option for 'g' parameter" >&2
+        echo "Try './corona -h' for more information." >&2
+        exit 1
+      fi;;
+
+   s) nextopt=""
+      eval nextopt=\$\{$OPTIND\}
+      if  echo "$nextopt" | grep -qE '^[0-9]+$'; then
+        WIDTH="$nextopt"
+        OPTIND=$((OPTIND + 1))
+      else
+        WIDTH="empty"
+      fi;;
+
+   h) if echo "$*" | grep -q '[-h]$'; then
+          echo "$OPTARG"
+          usage
+          exit 0
+      else
+          echo "Invalid $* option" >&2
+          echo "Maybe you mean or '-h'?" >&2
+          exit 1
+      fi;;
+
+   *) echo "Invalid flag or optional argument" >&2
+      echo "Try './corona -h' for more information." >&2
+      exit 1;;
+
+   esac
+done
+
+shift $(($OPTIND - 1))
+
+# initializing value for the command and delete argument
+case $1 in
+  infected | merge | gender | age | daily | monthly | yearly | countries | districts | regions)
+  COMMAND=$1
+  shift
+  ;;
+esac
+
+
+while [ $# -gt 0 ]
+  do
+    case $1 in
+      *.csv)
+        DATA="$DATA$(cat "$1")$NEW_LINE"
+        shift
+        continue
+        ;;
+      *.csv.gz)
+        DATA="$DATA$(gzip -d -c "$1")$NEW_LINE"
+        shift
+        continue
+        ;;
+      *.csv.bz2)
+        DATA="$DATA$(bzip2 -d -c "$1")$NEW_LINE"
+        shift
+        continue
+        ;;
+      *)
+        echo "Invalid argument" >&2
+        exit 1
+        ;;
+    esac
+  done
+
+
+if ! test -t 0; then
+  DATA=$(tr -d '\r' <&0 )
+else
+  DATA=$(printf "%b" "$DATA" | tr -d '\r')
+fi
+
+merge_func
+delete_empty_lines
+
+if [ -n "$DATE" ]; then
+  date_func
+fi
+
+if [ -n "$GENDER" ]; then
+  g_func
+fi
+
+if [ "$COMMAND" = "infected" ]; then
+  infected_func
+fi
+
+if [ "$COMMAND" = "gender" ]; then
+  gender_func
+fi
+
+if [ "$COMMAND" = "age" ]; then
+  age_func
+fi
+
+if [ "$COMMAND" = "daily" ]; then
+  daily_func
+fi
+
+if [ "$COMMAND" = "monthly" ]; then
+  monthly_func
+fi
+
+if [ "$COMMAND" = "yearly" ]; then
+  yearly_func
+fi
+
+if [ "$COMMAND" = "countries" ]; then
+  countries_func
+fi
+
+if [ "$COMMAND" = "districts" ]; then
+  districts_func
+fi
+
+if [ "$COMMAND" = "regions" ]; then
+  regions_func
+fi
+
+printf "%b\n" "$DATA"
+
+if echo "$INVALID" | grep -q '^Invalid*'; then
+    printf "%b\n" "$INVALID" >&2
+fi
+
+exit 0

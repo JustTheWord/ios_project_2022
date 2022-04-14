@@ -1,0 +1,1 @@
+./corona -g M infected inputs/flag_option.csv

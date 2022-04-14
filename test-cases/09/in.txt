@@ -1,0 +1,1 @@
+cat inputs/osoby.csv | ./corona monthly | head -n 3

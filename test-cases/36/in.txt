@@ -1,0 +1,1 @@
+./corona infected inputs/osoby-short.csv.gz inputs/osoby-short.csv.bz2

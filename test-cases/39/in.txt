@@ -1,0 +1,1 @@
+./corona daily inputs/with_none.csv

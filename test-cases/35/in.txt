@@ -1,0 +1,1 @@
+./corona -b 2022-01-03 -g M -a 2022-01-01 inputs/first.csv inputs/second.csv

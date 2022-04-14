@@ -1,0 +1,1 @@
+./corona -s daily inputs/osoby.csv | tail -n 2

@@ -1,0 +1,1 @@
+./corona merge inputs/bom_first.csv inputs/bom_second.csv

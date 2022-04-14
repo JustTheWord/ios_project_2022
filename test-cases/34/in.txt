@@ -1,0 +1,1 @@
+./corona -a 2020-03-01 -b 2020-03-03 inputs/b_case.csv

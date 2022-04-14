@@ -1,0 +1,1 @@
+./corona -g Z age inputs/first.csv inputs/age_data_second.csv

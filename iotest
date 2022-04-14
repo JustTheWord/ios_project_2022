@@ -1,0 +1,47 @@
+#!/bin/bash
+# Test na 1. projekt IOS
+# Ondroid
+# 2021-03-20
+
+tests="test-cases/*"
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+DIM='\e[2m'
+NOCOLOR='\033[0m'
+TICK='\u2713'
+CROSS='\u2717'
+
+verbose=""
+[ "$1" ] && [ "$1" = "-v" ] && verbose="1"
+
+for test in $tests; do
+	testfile="${test}/test_output.txt"
+	infile="${test}/in.txt"
+	outfile="${test}/out.txt"
+
+	command=$(cat "$infile")
+
+	eval "$command" >"$testfile" 2>/dev/null
+
+ 	diff --ignore-trailing-space --strip-trailing-cr "$testfile" "$outfile" >/dev/null
+
+	if [ $? -eq 0 ]; then
+		echo -e "$GREEN$TICK $test: $command$NOCOLOR"
+	else
+		echo -e "$RED$CROSS $test: $command$NOCOLOR"
+		failed='1'
+		if [ $verbose ]; then
+			echo -e "\nExpected output:$DIM"
+			cat "$outfile"
+			echo -e "${NOCOLOR}\nActual output:$DIM"
+			cat "$testfile"
+			echo -e "$NOCOLOR"
+		fi
+	fi
+done
+
+[ $failed ] && [ -z $verbose ] && cat << END
+Some tests failed. Run with -v to see their output.
+You can also check the test case folder to see the actual and expected output files.
+END
