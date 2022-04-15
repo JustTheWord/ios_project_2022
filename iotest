@@ -1,7 +1,4 @@
 #!/bin/bash
-# Test na 1. projekt IOS
-# Ondroid
-# 2021-03-20
 
 tests="test-cases/*"
 
