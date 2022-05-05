@@ -446,7 +446,8 @@ while [ $# -gt 0 ]
 
 
 if ! test -t 0; then
-  DATA=$(tr -d '\r' <&0 )
+  STDIN=$(tr -d '\r' <&0 )
+  DATA="$DATA$NEW_LINE$STDIN"
 else
   DATA=$(printf "%b" "$DATA" | tr -d '\r')
 fi
